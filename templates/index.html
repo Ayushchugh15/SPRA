@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPRA - Smart Production Resource Allocator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🏭 SPRA - Smart Production Resource Allocator</h1>
+            <p class="subtitle">Manufacturing Resource Planning for Horn Assembly</p>
+        </header>
+
+        <!-- Dashboard Stats -->
+        <section class="dashboard-stats" id="dashboardStats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalComponents">0</div>
+                <div class="stat-label">Total Components</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalHornTypes">0</div>
+                <div class="stat-label">Horn Types</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalOrders">0</div>
+                <div class="stat-label">Total Orders</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="activeOrders">0</div>
+                <div class="stat-label">Active Orders</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-value" id="lowStockComponents">0</div>
+                <div class="stat-label">Low Stock Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="inventoryValue">$0</div>
+                <div class="stat-label">Inventory Value</div>
+            </div>
+        </section>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab-btn active" data-tab="orders">Orders</button>
+            <button class="tab-btn" data-tab="horn-types">Horn Types</button>
+            <button class="tab-btn" data-tab="components">Components</button>
+            <button class="tab-btn" data-tab="mrp">MRP Planning</button>
+            <button class="tab-btn" data-tab="config">Configuration</button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Orders Tab -->
+            <div class="tab-pane active" id="orders-tab">
+                <div class="section-header">
+                    <h2>Customer Orders</h2>
+                    <button class="btn btn-primary" onclick="showOrderForm()">+ New Order</button>
+                </div>
+
+                <div id="orderForm" class="form-container" style="display: none;">
+                    <h3 id="orderFormTitle">Create New Order</h3>
+                    <form id="createOrderForm">
+                        <input type="hidden" id="orderEditId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Order Number</label>
+                                <input type="text" id="orderNumber" placeholder="Auto-generated if empty">
+                            </div>
+                            <div class="form-group">
+                                <label>Customer Name *</label>
+                                <input type="text" id="customerName" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Deadline *</label>
+                                <input type="date" id="orderDeadline" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="orderStatus">
+                                    <option value="pending">Pending</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Order Line Items (Horn Types + Quantities) *</label>
+                            <div id="orderLineItemsContainer">
+                                <div class="line-item-row">
+                                    <select class="line-item-horn-type" required>
+                                        <option value="">-- Select Horn Type --</option>
+                                    </select>
+                                    <input type="number" class="line-item-quantity" placeholder="Qty" min="1" required>
+                                    <button type="button" class="btn btn-secondary btn-small" onclick="removeOrderLineItem(this)" title="Remove">−</button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-small mt-10" onclick="addOrderLineItem()">+ Add Horn Type</button>
+                            <small>Add at least one horn type with quantity. You can add multiple horn types to an order.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="orderNotes" rows="3"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="orderSubmitBtn">Create Order</button>
+                            <button type="button" class="btn btn-secondary" onclick="hideOrderForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-container">
+                    <table id="ordersTable">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>Customer</th>
+                                <th>Horn Types & Qty</th>
+                                <th>Total</th>
+                                <th>Deadline</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ordersTableBody">
+                            <tr>
+                                <td colspan="7" class="loading">Loading orders...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Horn Types Tab -->
+            <div class="tab-pane" id="horn-types-tab">
+                <div class="section-header">
+                    <h2>Horn Types & BOM</h2>
+                    <button class="btn btn-primary" onclick="showHornTypeForm()">+ Add Horn Type</button>
+                </div>
+
+                <div id="hornTypeForm" class="form-container" style="display: none;">
+                    <h3 id="hornTypeFormTitle">Add New Horn Type</h3>
+                    <form id="createHornTypeForm">
+                        <input type="hidden" id="hornTypeEditId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Horn Type Code *</label>
+                                <input type="text" id="hornTypeCode" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Horn Type Name *</label>
+                                <input type="text" id="hornTypeName" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="hornTypeDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="hornTypeSubmitBtn">Add Horn Type</button>
+                            <button type="button" class="btn btn-secondary" onclick="hideHornTypeForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="hornTypesList">
+                    <div class="loading">Loading horn types...</div>
+                </div>
+
+                <div id="hornTypeBOMSection" class="form-container" style="display: none;">
+                    <h3>BOM for: <span id="bomHornTypeName"></span></h3>
+                    <p class="mb-10">Select components and set quantity per horn for this horn type.</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Add Component</label>
+                            <select id="bomComponentSelect">
+                                <option value="">-- Select Component --</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Qty per Horn</label>
+                            <input type="number" id="bomQuantityPerHorn" step="0.01" min="0.01" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label>&nbsp;</label>
+                            <button type="button" class="btn btn-primary" onclick="addComponentToHornType()">Add to BOM</button>
+                        </div>
+                    </div>
+                    <div class="table-container mt-20">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Qty per Horn</th>
+                                    <th>Unit</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hornTypeBOMTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Components Tab -->
+            <div class="tab-pane" id="components-tab">
+                <div class="section-header">
+                    <h2>Bill of Materials (BOM)</h2>
+                    <button class="btn btn-primary" onclick="showComponentForm()">+ Add Component</button>
+                </div>
+
+                <div id="componentForm" class="form-container" style="display: none;">
+                    <h3 id="componentFormTitle">Add New Component</h3>
+                    <form id="createComponentForm">
+                        <input type="hidden" id="componentEditId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Component Code *</label>
+                                <input type="text" id="componentCode" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Component Name *</label>
+                                <input type="text" id="componentName" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="componentDescription" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Unit</label>
+                                <input type="text" id="componentUnit" value="pieces">
+                            </div>
+                            <div class="form-group">
+                                <label>Unit Cost ($)</label>
+                                <input type="number" id="componentUnitCost" step="0.01" value="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Current Inventory</label>
+                                <input type="number" id="componentInventory" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Min Stock Level</label>
+                                <input type="number" id="componentMinStock" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Max Stock Level</label>
+                                <input type="number" id="componentMaxStock" step="0.01" value="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Lead Time (days)</label>
+                                <input type="number" id="componentLeadTime" value="7">
+                            </div>
+                            <div class="form-group">
+                                <label>Min Order Quantity</label>
+                                <input type="number" id="componentMOQ" step="0.01" value="0">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Supplier Name</label>
+                                <input type="text" id="componentSupplier">
+                            </div>
+                            <div class="form-group">
+                                <label>Supplier Contact</label>
+                                <input type="text" id="componentSupplierContact">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="componentSubmitBtn">Add Component</button>
+                            <button type="button" class="btn btn-secondary" onclick="hideComponentForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-container">
+                    <table id="componentsTable">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Unit</th>
+                                <th>Inventory</th>
+                                <th>Min Stock</th>
+                                <th>Supplier</th>
+                                <th>Lead Time</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="componentsTableBody">
+                            <tr>
+                                <td colspan="8" class="loading">Loading components...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MRP Tab -->
+            <div class="tab-pane" id="mrp-tab">
+                <div class="section-header">
+                    <h2>Material Requirement Planning</h2>
+                </div>
+
+                <div class="mrp-controls">
+                    <div class="form-group">
+                        <label>Select Order:</label>
+                        <select id="mrpOrderSelect" onchange="loadMRPPlan()">
+                            <option value="">-- Select an order --</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="generateMRPPlan()" id="generateMRPBtn" disabled>
+                        Generate MRP Plan
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportMRPPlan()" id="exportMRPBtn" disabled>
+                        Export to CSV
+                    </button>
+                </div>
+
+                <div id="mrpSummary" class="mrp-summary" style="display: none;">
+                    <h3>Planning Summary</h3>
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <span class="summary-label">Order Quantity:</span>
+                            <span class="summary-value" id="summaryQuantity">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Working Days:</span>
+                            <span class="summary-value" id="summaryWorkingDays">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Daily Production:</span>
+                            <span class="summary-value" id="summaryDailyProd">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Production Start:</span>
+                            <span class="summary-value" id="summaryProdStart">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Components to Order:</span>
+                            <span class="summary-value" id="summaryComponentsToOrder">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Total Estimated Cost:</span>
+                            <span class="summary-value" id="summaryTotalCost">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="mrpTable">
+                        <thead>
+                            <tr>
+                                <th>Component</th>
+                                <th>Total Required</th>
+                                <th>Current Inv.</th>
+                                <th>Net Requirement</th>
+                                <th>Order Quantity</th>
+                                <th>Order Date</th>
+                                <th>Expected Delivery</th>
+                                <th>Supplier</th>
+                                <th>Cost</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mrpTableBody">
+                            <tr>
+                                <td colspan="10" class="loading">Select an order and generate MRP plan</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Configuration Tab -->
+            <div class="tab-pane" id="config-tab">
+                <div class="section-header">
+                    <h2>Production Configuration</h2>
+                </div>
+
+                <div class="form-container">
+                    <form id="configForm">
+                        <div class="form-group">
+                            <label>Daily Production Capacity (Horns/Day) *</label>
+                            <input type="number" id="configDailyCapacity" required min="1">
+                            <small>Maximum number of horns that can be produced per day</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Working Days per Week *</label>
+                            <input type="number" id="configWorkingDays" required min="1" max="7">
+                            <small>Number of working days in a week (1-7)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Maximum Inventory Days</label>
+                            <input type="number" id="configMaxInventoryDays" min="1">
+                            <small>Maximum days of inventory to hold (for storage planning)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Safety Stock Days</label>
+                            <input type="number" id="configSafetyStockDays" min="0">
+                            <small>Buffer days for safety stock to prevent stockouts</small>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Save Configuration</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="info-box">
+                    <h3>About Production Configuration</h3>
+                    <p><strong>Daily Production Capacity:</strong> This determines how many horns your facility can produce in a single day. The system will use this to calculate production schedules.</p>
+                    <p><strong>Working Days per Week:</strong> Set this based on your operational schedule (typically 5-6 days). This affects the calculation of available production time.</p>
+                    <p><strong>Maximum Inventory Days:</strong> This helps optimize storage costs by limiting how much inventory you hold at once.</p>
+                    <p><strong>Safety Stock Days:</strong> A buffer to account for unexpected delays or demand spikes. Components will be ordered earlier to maintain this buffer.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for detailed views -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
